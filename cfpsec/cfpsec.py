@@ -18,17 +18,21 @@ import sys
 import argparse
 import requests
 import json
+import re
+from urllib.parse import urljoin
 from colorama import init, Fore, Style
 
 __author__ = "Alexandre Borges"
 __copyright__ = "Copyright 2025, Alexandre Borges"
 __license__ = "GNU General Public License v3.0"
-__version__ = "1.4"
+__version__ = "1.5"
 __email__ = "reverseexploit@proton.me"
 
 # Constants
-CFP_URL = 'https://api.cfptime.org/api/cfps/'
-UPCOMING_URL = 'https://api.cfptime.org/api/upcoming/'
+
+ORIG_URL = 'https://api.cfptime.org'
+CFP_URL = 'https://api.cfptime.org/api/cfps'
+UPCOMING_URL = 'https://api.cfptime.org/api/upcoming'
 
 # Colors
 COLORS = {
@@ -44,15 +48,40 @@ COLORS = {
     "reset": Style.RESET_ALL
 }
 
+
 def fetch_data(url):
-    """Fetch data from the given URL."""
+    session = requests.Session()
+
     try:
-        response = requests.get(url)
+        init_response = session.get(ORIG_URL)
+        init_response.raise_for_status()
+    except requests.RequestException as e:
+        print(f"Error during initial request: {e}")
+        sys.exit(1)
+
+    match = re.search(r'request\.headers\["X-CSRFToken"\]\s*=\s*"([^"]+)"', init_response.text)
+    if not match:
+        print("CSRF token not found in Swagger UI.")
+        sys.exit(1)
+
+    csrf_token = match.group(1)
+
+    headers = {
+      'Accept': 'application/json',
+      'X-CSRFToken': csrf_token,
+      'Referer': 'https://api.cfptime.org'
+      }
+
+    try:
+    
+        full_url = urljoin(url + '/', '?format=json')
+        response = session.get(full_url, headers=headers)
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
-        print(COLORS["lightred"] + f"Error fetching data: {e}" + COLORS["reset"])
+        print(f"Error fetching data: {e}")
         sys.exit(1)
+
 
 def display_data(data, fields, headers):
     """Display data in a formatted table with tabs between columns."""
@@ -82,7 +111,7 @@ def cfplist():
     ]
     headers = (
         "Conference Name".ljust(35) + "\t" +
-        "CFP End".ljust(12) + "\t" +
+        "CFP End".ljust(15) + "\t" +
         "Conf Start".ljust(10) + "\t" +
         "City".ljust(16) + "\t" +
         "Twitter".ljust(18) + "\t" +
