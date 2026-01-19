@@ -53,6 +53,9 @@ def fetch_data(url):
     session = requests.Session()
 
     try:
+        # Force gzip/deflate to avoid zstd decoding issues in some environments
+        headers = {'Accept-Encoding': 'gzip, deflate'}
+        init_response = session.get(ORIG_URL, headers=headers)
         init_response = session.get(ORIG_URL)
         init_response.raise_for_status()
     except requests.RequestException as e:
